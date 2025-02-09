@@ -17,8 +17,9 @@
     "web-vitals": "^3.5.2",
     "xlsx": "^0.18.5"
   },
-  "engines": {
-    "node": ">=18"
+"engines": {
+  "node": ">=18",
+  "npm": ">=6.0.0"
   },
   "scripts": {
     "start": "react-scripts start",
