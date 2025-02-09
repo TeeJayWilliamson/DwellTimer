@@ -71,11 +71,7 @@ export default function App() {
   }, [logs]);
 
   const addLog = (newLog) => {
-    setLogs(prevLogs => {
-      // Filter for only today's logs and add the new log
-      const todaysLogs = prevLogs.filter(log => isToday(new Date(log.date)));
-      return [...todaysLogs, newLog];
-    });
+    setLogs(prevLogs => [...prevLogs, newLog]);
   };
 
   return (
