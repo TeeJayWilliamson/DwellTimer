@@ -24,19 +24,13 @@ export default function TrainStopwatch({ logs, setLogs }) {
   useEffect(() => {
     let stopwatchInterval;
     if (running) {
-      if (startTime === null) {
-        setStartTime(Date.now() - elapsedTime);
-      }
       stopwatchInterval = setInterval(() => {
-        setElapsedTime(Date.now() - startTime);
+        setElapsedTime(Date.now() - (startTime ?? Date.now() - elapsedTime));
       }, 100);
     }
-    return () => {
-      if (stopwatchInterval) {
-        clearInterval(stopwatchInterval);
-      }
-    };
-  }, [running, startTime]);
+    return () => clearInterval(stopwatchInterval);
+  }, [running, elapsedTime]);
+  
 
   const validateInputs = () => {
     return runNumber.length === 3 && crowdLevel !== '';
