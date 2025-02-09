@@ -212,10 +212,12 @@
     width: 100%;
     max-width: 400px;
     justify-content: center;
-  }
-  
-  .action-button {
-    display: inline-block; /* Ensures it behaves like a button */
+}
+
+.action-button {
+    display: inline-block; /* Ensures button doesn't stretch */
+    width: auto; /* Prevents full width */
+    min-width: 120px; /* Ensures consistent size */
     text-align: center;
     padding: 10px 20px;
     font-size: 16px;
@@ -225,7 +227,9 @@
     border-radius: 5px;
     text-decoration: none; /* Removes underline from Link */
     cursor: pointer;
-  }
+    white-space: nowrap; /* Prevents text from wrapping */
+}
+
   
   .action-button:hover {
     background-color: #b71c1c;
@@ -299,7 +303,7 @@
     }
   
     .action-button {
-      width: 100%;
+      max-width: 100%;
       text-align: center;
     }
   }
