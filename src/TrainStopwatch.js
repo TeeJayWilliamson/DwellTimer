@@ -21,6 +21,7 @@ export default function TrainStopwatch({ logs, setLogs }) {
     return () => clearInterval(timeInterval);
   }, []);
 
+  // eslint-disable-next-line
   useEffect(() => {
     let stopwatchInterval;
     if (running) {
