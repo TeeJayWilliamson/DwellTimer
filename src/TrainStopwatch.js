@@ -21,7 +21,6 @@ export default function TrainStopwatch({ logs, setLogs }) {
     return () => clearInterval(timeInterval);
   }, []);
 
-  // eslint-disable-next-line
   useEffect(() => {
     let stopwatchInterval;
     if (running) {
@@ -30,8 +29,7 @@ export default function TrainStopwatch({ logs, setLogs }) {
       }, 100);
     }
     return () => clearInterval(stopwatchInterval);
-  }, [running, elapsedTime]);
-  
+  }, [running, elapsedTime, startTime]); // Added startTime  
 
   const validateInputs = () => {
     return runNumber.length === 3 && crowdLevel !== '';
