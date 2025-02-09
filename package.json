@@ -18,14 +18,14 @@
     "xlsx": "^0.18.5"
   },
   "engines": {
-    "node": ">=18"
+    "node": "18.x"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "CI=false react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "install-deps": "npm install"
+    "serve": "serve -s build",
+    "start": "./node_modules/.bin/react-scripts start",
+    "build": "./node_modules/.bin/react-scripts build",
+    "test": "./node_modules/.bin/react-scripts test",
+    "eject": "./node_modules/.bin/react-scripts eject"
   },
   "eslintConfig": {
     "extends": [
@@ -44,10 +44,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "devDependencies": {
-    "@babel/plugin-transform-private-property-in-object": "^7.25.9",
-    "gh-pages": "^6.3.0",
-    "typescript": "^4.9.5"
   }
 }
