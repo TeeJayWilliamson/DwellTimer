@@ -66,17 +66,16 @@ export default function App() {
 
   // Save logs to localStorage whenever they change
   useEffect(() => {
-    if (logs.length > 0) {
-      localStorage.setItem('trainLogs', JSON.stringify(logs));
-      localStorage.setItem('trainLogsDate', new Date().toISOString());
-    }
+    localStorage.setItem('trainLogs', JSON.stringify(logs));
+    localStorage.setItem('trainLogsDate', new Date().toISOString());
   }, [logs]);
 
   const addLog = (newLog) => {
-    // Filter for only today's logs before adding new log
-    const todaysLogs = logs.filter(log => isToday(new Date(log.date)));
-    const updatedLogs = [...todaysLogs, newLog];
-    setLogs(updatedLogs);
+    setLogs(prevLogs => {
+      // Filter for only today's logs and add the new log
+      const todaysLogs = prevLogs.filter(log => isToday(new Date(log.date)));
+      return [...todaysLogs, newLog];
+    });
   };
 
   return (

@@ -209,9 +209,13 @@
     display: flex;
     gap: 1rem;
     margin-top: 2rem;
+    width: 100%;
+    max-width: 400px;
+    justify-content: center;
   }
   
   .action-button {
+    flex: 1;
     background-color: var(--ttc-red);
     color: white;
     padding: 0.8rem 1.5rem;
@@ -221,6 +225,8 @@
     text-decoration: none;
     font-weight: 600;
     transition: background-color 0.2s ease;
+    text-align: center; 
+    display: inline-block; 
   }
   
   .action-button:hover {
@@ -253,6 +259,13 @@
   
   .input-section.running:has(.error) {
     border-color: var(--ttc-red);
+  }
+
+  @media (max-width: 600px) {
+    .export-container {
+      flex-direction: row;
+      width: 100%;
+    }
   }
 
   @media (max-width: 600px) {
