@@ -97,7 +97,8 @@ export default function TrainStopwatch({ logs, setLogs }) {
   return (
     <div className="stopwatch-container">
       <div className="ttc-header">
-        <div className="ttc-logo">TTC</div>
+      <img src="/TTC.png" alt="TTC Logo" className="ttc-logo" />
+      {/* <div className="ttc-logo">TTC</div> */}
         <h1 className="stopwatch-title">Dwell Timer</h1>
       </div>
 
