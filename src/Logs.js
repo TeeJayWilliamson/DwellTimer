@@ -4,11 +4,26 @@ import './Logs.css';
 export default function Logs({ logs }) {
   const reversedLogs = [...logs].reverse();
 
+  const clearLogs = () => {
+    localStorage.removeItem('trainLogs');
+    localStorage.removeItem('trainLogsDate');
+    window.location.reload();
+  };
+
   return (
     <div className="logs-container">
       <div className="ttc-header">
         <div className="ttc-logo">TTC</div>
         <h1 className="logs-title">Train Logs</h1>
+      </div>
+
+      <div className="logs-actions">
+        <Link to="/" className="back-button">Back to Stopwatch</Link>
+        {logs.length > 0 && (
+          <button onClick={clearLogs} className="clear-button">
+            Clear All Logs
+          </button>
+        )}
       </div>
 
       {logs.length > 0 ? (
@@ -43,8 +58,6 @@ export default function Logs({ logs }) {
       ) : (
         <p className="no-logs">No logs recorded yet.</p>
       )}
-      
-      <Link to="/" className="back-button">Back to Stopwatch</Link>
     </div>
   );
 }

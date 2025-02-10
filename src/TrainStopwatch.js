@@ -1,8 +1,22 @@
 import { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { Link } from 'react-router-dom';
 import './TrainStopwatch.css';
+import ExcelJS from "exceljs";
+
+// Helper function to determine time slot based on current hour
+const getTimeSlot = (timeString) => {
+  const time = new Date(`1970/01/01 ${timeString}`);
+  const hours = time.getHours();
+  const minutes = time.getMinutes();
+  
+  // Split current hour into 15-minute intervals
+  if (minutes >= 0 && minutes < 15) return `${hours}:00-${hours}:15`;
+  if (minutes >= 15 && minutes < 30) return `${hours}:16-${hours}:30`;
+  if (minutes >= 30 && minutes < 45) return `${hours}:31-${hours}:45`;
+  if (minutes >= 45 && minutes < 60) return `${hours}:46-${hours + 1}:00`;
+  return 'Other';
+};
 
 export default function TrainStopwatch({ logs, setLogs }) {
   const [running, setRunning] = useState(false);
@@ -29,7 +43,7 @@ export default function TrainStopwatch({ logs, setLogs }) {
       }, 100);
     }
     return () => clearInterval(stopwatchInterval);
-  }, [running, elapsedTime, startTime]); // Added startTime  
+  }, [running, elapsedTime, startTime]);
 
   const validateInputs = () => {
     return runNumber.length === 3 && crowdLevel !== '';
@@ -60,7 +74,7 @@ export default function TrainStopwatch({ logs, setLogs }) {
         crowdLevel,
         date: new Date().toLocaleDateString()
       };
-      setLogs(newLog); // Now calling the addLog function from App.js
+      setLogs(newLog);
     }
   };
 
@@ -85,20 +99,120 @@ export default function TrainStopwatch({ logs, setLogs }) {
     if (attemptedStop) setShowValidation(true);
   };
 
-  const exportLogs = () => {
-    const ws = XLSX.utils.json_to_sheet(logs);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Logs");
-    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const data = new Blob([excelBuffer], { type: "application/octet-stream" });
-    saveAs(data, "TrainLogs.xlsx");
-  };
+  const exportLogs = async () => {
+    if (!logs.length) {
+        alert("No logs to export.");
+        return;
+    }
+
+    // Create a new workbook and worksheet
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Train Logs");
+
+    // Group logs by time slot
+    const logsByTimeSlot = logs.reduce((acc, log) => {
+        const timeSlot = getTimeSlot(log.time);
+        if (!acc[timeSlot]) {
+            acc[timeSlot] = [];
+        }
+        acc[timeSlot].push(log);
+        return acc;
+    }, {});
+
+    // Define alternating green shades for rows
+    const rowColors = ["E0F8E0", "B8E0B8"]; // Light green shades
+
+    // Add headers with merged cells and styling
+    let columnIndex = 1;
+    Object.keys(logsByTimeSlot).forEach((timeSlot) => {
+        // Merge two cells for the time slot header
+        worksheet.mergeCells(1, columnIndex, 1, columnIndex + 1);
+
+        // Style the merged header cell
+        const headerCell = worksheet.getCell(1, columnIndex);
+        headerCell.value = timeSlot;
+        headerCell.alignment = { horizontal: "center", vertical: "middle" };
+        headerCell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FF0000" }, // Red background
+        };
+        headerCell.font = { bold: true, color: { argb: "FFFFFF" } }; // White font
+        headerCell.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" }
+        };
+
+        columnIndex += 2; // Move to the next time slot (2 columns per slot)
+    });
+
+    // Add logs data under each time slot
+    Object.entries(logsByTimeSlot).forEach(([timeSlot, slotLogs], slotIndex) => {
+        let colStart = slotIndex * 2 + 1; // Start column for this time slot
+        let rowIndex = 2; // Reset rowIndex for each time slot
+
+        slotLogs.forEach((log, logIndex) => {
+            const bgColor = rowColors[logIndex % rowColors.length]; // Alternate row colors
+
+            // Add Run Number
+            const runCell = worksheet.getCell(rowIndex, colStart);
+            runCell.value = `Run: ${log.runNumber}`;
+            runCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
+            runCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+            runCell.alignment = { horizontal: "center", vertical: "middle" };
+
+            // Add Time
+            const timeCell = worksheet.getCell(rowIndex, colStart + 1);
+            timeCell.value = log.time;
+            timeCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
+            timeCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+            timeCell.alignment = { horizontal: "center", vertical: "middle" };
+
+            rowIndex++;
+
+            // Add Duration (merged across two columns)
+            worksheet.mergeCells(rowIndex, colStart, rowIndex, colStart + 1);
+            const durationCell = worksheet.getCell(rowIndex, colStart);
+            durationCell.value = `${log.duration.toFixed(2)} seconds`;
+            durationCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
+            durationCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+            durationCell.alignment = { horizontal: "center", vertical: "middle" };
+
+            rowIndex++;
+
+            // Add Crowd Level Label and Value
+            const crowdLabelCell = worksheet.getCell(rowIndex, colStart);
+            crowdLabelCell.value = "Crowd Levels:";
+            crowdLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
+            crowdLabelCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+            crowdLabelCell.alignment = { horizontal: "center", vertical: "middle" };
+
+            const crowdValueCell = worksheet.getCell(rowIndex, colStart + 1);
+            crowdValueCell.value = log.crowdLevel;
+            crowdValueCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
+            crowdValueCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+            crowdValueCell.alignment = { horizontal: "center", vertical: "middle" };
+
+            rowIndex++;
+        });
+    });
+
+    // Adjust column widths for readability
+    worksheet.columns.forEach(column => {
+        column.width = 20;
+    });
+
+    // Generate and save the Excel file
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer], { type: "application/octet-stream" }), `${new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })} Dwells.xlsx`);
+};  
 
   return (
     <div className="stopwatch-container">
       <div className="ttc-header">
-      <img src="/TTC.png" alt="TTC Logo" className="ttc-logo" />
-      {/* <div className="ttc-logo">TTC</div> */}
+        <img src="/TTC.png" alt="TTC Logo" className="ttc-logo" />
         <h1 className="stopwatch-title">Dwell Timer</h1>
       </div>
 
