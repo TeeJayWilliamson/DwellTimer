@@ -274,6 +274,29 @@
     border-color: var(--ttc-red);
   }
 
+  .location-selector {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.location-dropdown {
+    width: 100%;
+    max-width: 500px;
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: white;
+    cursor: pointer;
+}
+
+.location-dropdown:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0,123,255,.25);
+}
+
+
   @media (max-width: 600px) {
     .export-container {
       flex-direction: row;
