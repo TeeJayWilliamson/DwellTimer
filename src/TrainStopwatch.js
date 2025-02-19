@@ -1,5 +1,5 @@
 // TrainStopwatch.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect} from 'react';
 import { saveAs } from 'file-saver';
 import { Link } from 'react-router-dom';
 import './TrainStopwatch.css';
@@ -114,133 +114,169 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
         if (attemptedStop) setShowValidation(true);
     };
 
+    const getNextTimeSlots = (startTime, count = 5) => {
+        const slots = [];
+        const time = new Date(startTime);
+        const currentSlot = getTimeSlot(time.toLocaleTimeString());
+        slots.push(currentSlot);
+    
+        // Get the start time of the next slot
+        const [currentHour, currentMinute] = currentSlot.split('-')[0].split(':').map(Number);
+        time.setHours(currentHour);
+        time.setMinutes(currentMinute);
+    
+        // Add the next 4 time slots
+        for (let i = 1; i < count; i++) {
+            time.setMinutes(time.getMinutes() + 15);
+            slots.push(getTimeSlot(time.toLocaleTimeString()));
+        }
+    
+        return slots;
+    };
+    
     const exportLogs = async () => {
-      if (!logs.length) {
-          alert("No logs to export.");
-          return;
-      }
-  
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet("Train Logs");
-  
-      const logsByTimeSlot = logs.reduce((acc, log) => {
-          const timeSlot = getTimeSlot(log.time);
-          if (!acc[timeSlot]) {
-              acc[timeSlot] = [];
-          }
-          acc[timeSlot].push(log);
-          return acc;
-      }, {});
-  
-      const now = new Date();
-      const currentTimeSlot = getTimeSlot(now.toLocaleTimeString());
-      const timeSlots = [currentTimeSlot];
-      let nextTime = new Date(now);
-  
-      for (let i = 0; i < 3; i++) {
-          nextTime.setMinutes(nextTime.getMinutes() + 15);
-          timeSlots.push(getTimeSlot(nextTime.toLocaleTimeString()));
-      }
-  
-      const uniqueTimeSlots = [...new Set(timeSlots)];
-      const totalColumns = uniqueTimeSlots.length * 2;
-  
-      // Location Header
-      worksheet.mergeCells(1, 1, 1, totalColumns);
-      const locationCell = worksheet.getCell(1, 1);
-      locationCell.value = selectedLocation || "LOCATION NAME";
-      locationCell.font = { name: "Calibri", size: 22, bold: true, color: { argb: "000000" } };
-      locationCell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-      locationCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFC000" } };
-      locationCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-      worksheet.getRow(1).height = 45;
-  
-      // Date Header
-      worksheet.mergeCells(2, 1, 2, totalColumns);
-      const dateCell = worksheet.getCell(2, 1);
-      dateCell.value = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-      dateCell.font = { name: "Calibri", size: 12, bold: true };
-      dateCell.alignment = { horizontal: "left", vertical: "middle" };
-      dateCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-  
-      const rowColors = ["D0CECE", "DEEAF6"];
-  
-      // Time Slot Headers
-      let columnIndex = 1;
-      uniqueTimeSlots.forEach((timeSlot) => {
-          worksheet.mergeCells(3, columnIndex, 3, columnIndex + 1);
-          const headerCell = worksheet.getCell(3, columnIndex);
-          headerCell.value = timeSlot;
-          headerCell.font = { name: "Calibri", size: 12, bold: true, color: { argb: "000000" } };
-          headerCell.alignment = { horizontal: "center", vertical: "middle" };
-          headerCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "AEABAB" } };
-          headerCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-          columnIndex += 2;
-      });
-  
-      // Log Data
-      uniqueTimeSlots.forEach((timeSlot, slotIndex) => {
-          const slotLogs = logs.filter((log) => getTimeSlot(log.time) === timeSlot);
-          let colStart = slotIndex * 2 + 1;
-          let rowIndex = 4;
-  
-          slotLogs.forEach((log, logIndex) => {
-              if (!log) return;
-  
-              const bgColor = rowColors[logIndex % rowColors.length];
-  
-              const runCell = worksheet.getCell(rowIndex, colStart);
-              runCell.value = `Run: ${log.runNumber || "N/A"}`;
-              runCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
-              runCell.alignment = { horizontal: "center", vertical: "middle" };
-              runCell.font = { name: "Calibri", size: 12 };
-              runCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-  
-              const timeCell = worksheet.getCell(rowIndex, colStart + 1);
-              timeCell.value = log.time || "N/A";
-              timeCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
-              timeCell.alignment = { horizontal: "center", vertical: "middle" };
-              timeCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-  
-              rowIndex++;
-  
-              worksheet.mergeCells(rowIndex, colStart, rowIndex, colStart + 1);
-              const durationCell = worksheet.getCell(rowIndex, colStart);
-              const duration = typeof log.duration === "number" ? log.duration.toFixed(2) : "N/A";
-              durationCell.value = `${duration} ${duration !== "N/A" ? "seconds" : ""}`;
-              durationCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
-              durationCell.alignment = { horizontal: "center", vertical: "middle" };
-              durationCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-  
-              rowIndex++;
-  
-              const crowdLabelCell = worksheet.getCell(rowIndex, colStart);
-              crowdLabelCell.value = "Crowd Levels:";
-              crowdLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
-              crowdLabelCell.alignment = { horizontal: "center", vertical: "middle" };
-              crowdLabelCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-  
-              const crowdValueCell = worksheet.getCell(rowIndex, colStart + 1);
-              crowdValueCell.value = log.crowdLevel || "N/A";
-              crowdValueCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
-              crowdValueCell.alignment = { horizontal: "center", vertical: "middle" };
-              crowdValueCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-  
-              rowIndex++;
-          });
-      });
-  
-// Adjust column widths for paired columns
-uniqueTimeSlots.forEach((_, slotIndex) => {
-  const colStart = slotIndex * 2 + 1;
-  worksheet.getColumn(colStart).width = 13.75; // ~110px
-  worksheet.getColumn(colStart + 1).width = 11.25; // ~90px
-});
-  
-      const buffer = await workbook.xlsx.writeBuffer();
-      saveAs(new Blob([buffer], { type: "application/octet-stream" }), `${new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })} Dwells.xlsx`);
-  };
-  
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet("Train Logs");
+    
+        // Find the earliest log time
+        const earliestLog = logs.reduce((earliest, log) => {
+            const logTime = new Date(`1970/01/01 ${log.time}`);
+            const earliestTime = new Date(`1970/01/01 ${earliest.time}`);
+            return logTime < earliestTime ? log : earliest;
+        }, logs[0]);
+    
+        // If no logs exist, use current time
+        const startTime = earliestLog 
+            ? new Date(`1970/01/01 ${earliestLog.time}`)
+            : new Date();
+    
+        // Get time slots starting from earliest log
+        const timeSlots = getNextTimeSlots(startTime);
+        const totalColumns = timeSlots.length * 2;
+    
+        // Location Header (Row 1)
+        for (let i = 1; i <= totalColumns; i++) {
+            const cell = worksheet.getCell(1, i);
+            if (i === 1) {
+                cell.value = selectedLocation || "LOCATION NAME";
+            }
+            cell.font = { name: "Calibri", size: 22, bold: true, color: { argb: "000000" } };
+            cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFC000" } };
+            cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+        }
+        worksheet.mergeCells(`A1:${worksheet.getCell(1, totalColumns)._address}`);
+        worksheet.getRow(1).height = 45;
+    
+        // Date Header (Row 2)
+        for (let i = 1; i <= totalColumns; i++) {
+            const cell = worksheet.getCell(2, i);
+            if (i === 1) {
+                cell.value = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+            }
+            cell.font = { name: "Calibri", size: 12, bold: true };
+            cell.alignment = { horizontal: "left", vertical: "middle" };
+            cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+        }
+        worksheet.mergeCells(`A2:${worksheet.getCell(2, totalColumns)._address}`);
+    
+        const rowColors = ["D0CECE", "DEEAF6"];
+    
+        // Time Slot Headers (Row 3)
+        timeSlots.forEach((timeSlot, index) => {
+            const colStart = index * 2 + 1;
+            const headerCell = worksheet.getCell(3, colStart);
+            headerCell.value = timeSlot;
+            headerCell.font = { name: "Calibri", size: 12, bold: true, color: { argb: "000000" } };
+            headerCell.alignment = { horizontal: "center", vertical: "middle" };
+            headerCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "AEABAB" } };
+            headerCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+            
+            const secondCell = worksheet.getCell(3, colStart + 1);
+            secondCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+            worksheet.mergeCells(3, colStart, 3, colStart + 1);
+        });
+    
+        // Log Data
+        timeSlots.forEach((timeSlot, slotIndex) => {
+            const slotLogs = logs.filter((log) => getTimeSlot(log.time) === timeSlot);
+            const colStart = slotIndex * 2 + 1;
+    
+            slotLogs.forEach((log, logIndex) => {
+                const rowStart = 4 + (logIndex * 4);
+                const bgColor = rowColors[logIndex % rowColors.length];
+    
+                // Run number and time
+                const runCell = worksheet.getCell(rowStart, colStart);
+                const timeCell = worksheet.getCell(rowStart, colStart + 1);
+                
+                runCell.value = `Run: ${log.runNumber}`;
+                timeCell.value = log.time;
+                
+                [runCell, timeCell].forEach(cell => {
+                    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
+                    cell.alignment = { horizontal: "center", vertical: "middle" };
+                    cell.font = { name: "Calibri", size: 12 };
+                    cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+                });
+    
+                // Duration (merged)
+                const durationCells = [
+                    worksheet.getCell(rowStart + 1, colStart),
+                    worksheet.getCell(rowStart + 1, colStart + 1)
+                ];
+                
+                durationCells[0].value = `${log.duration.toFixed(2)} seconds`;
+                durationCells.forEach(cell => {
+                    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
+                    cell.alignment = { horizontal: "center", vertical: "middle" };
+                    cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+                });
+                worksheet.mergeCells(rowStart + 1, colStart, rowStart + 1, colStart + 1);
+    
+                // Crowd level
+                const crowdLabelCell = worksheet.getCell(rowStart + 2, colStart);
+                const crowdValueCell = worksheet.getCell(rowStart + 2, colStart + 1);
+                
+                crowdLabelCell.value = "Crowd Levels:";
+                crowdValueCell.value = log.crowdLevel;
+                
+                [crowdLabelCell, crowdValueCell].forEach(cell => {
+                    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
+                    cell.alignment = { horizontal: "center", vertical: "middle" };
+                    cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+                });
+    
+                // Add empty row with borders
+                const emptyRow = rowStart + 3;
+                [colStart, colStart + 1].forEach(col => {
+                    const cell = worksheet.getCell(emptyRow, col);
+                    cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+                });
+            });
+    
+            // If no logs for this slot, create empty structure
+            if (slotLogs.length === 0) {
+                for (let i = 0; i < 4; i++) {
+                    const currentRow = 4 + i;
+                    [colStart, colStart + 1].forEach(col => {
+                        const cell = worksheet.getCell(currentRow, col);
+                        cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+                    });
+                }
+            }
+        });
+    
+        // Adjust column widths
+        timeSlots.forEach((_, slotIndex) => {
+            const colStart = slotIndex * 2 + 1;
+            worksheet.getColumn(colStart).width = 13.75;
+            worksheet.getColumn(colStart + 1).width = 11.25;
+        });
+    
+        const buffer = await workbook.xlsx.writeBuffer();
+        saveAs(new Blob([buffer], { type: "application/octet-stream" }), `${new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })} Dwells.xlsx`);
+    };
 
     return (
         <div className="stopwatch-container">
