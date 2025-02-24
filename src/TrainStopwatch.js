@@ -9,10 +9,12 @@ const getTimeSlot = (timeString) => {
     const time = new Date(`1970/01/01 ${timeString}`);
     const hours = time.getHours();
     const minutes = time.getMinutes();
-    if (minutes >= 0 && minutes < 15) return `${hours}:00-${hours}:15`;
-    if (minutes >= 15 && minutes < 30) return `${hours}:16-${hours}:30`;
-    if (minutes >= 30 && minutes < 45) return `${hours}:31-${hours}:45`;
-    if (minutes >= 45 && minutes < 60) return `${hours}:46-${hours + 1}:00`;
+    
+    // Adjusted ranges to be inclusive of the upper bound
+    if (minutes >= 0 && minutes <= 15) return `${hours}:00-${hours}:15`;
+    if (minutes > 15 && minutes <= 30) return `${hours}:16-${hours}:30`;
+    if (minutes > 30 && minutes <= 45) return `${hours}:31-${hours}:45`;
+    if (minutes > 45 && minutes < 60) return `${hours}:46-${hours + 1}:00`;
     return 'Other';
 };
 
@@ -66,32 +68,36 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
         return runNumber.length === 3 && crowdLevel !== '';
     };
 
+    const [startTimestamp, setStartTimestamp] = useState(''); // Add this to your state variables at the top
+
     const handleStart = () => {
+        const now = new Date();
         setStartTime(Date.now() - elapsedTime);
+        setStartTimestamp(now.toLocaleTimeString()); // Store the start time
         setRunning(true);
         setAttemptedStop(false);
         setShowValidation(false);
     };
-
+    
     const handleLocationChange = (e) => {
         const location = e.target.value;
         setSelectedLocation(location);
         localStorage.setItem('selectedLocation', location); // Save to localStorage
     };
-
+    
     const handleStop = () => {
         if (!validateInputs()) {
             setShowValidation(true);
             setAttemptedStop(true);
             return;
         }
-
+    
         if (running) {
             setRunning(false);
             setAttemptedStop(false);
             const finalElapsed = (elapsedTime / 1000).toFixed(2);
             const newLog = {
-                time: new Date().toLocaleTimeString(),
+                time: startTimestamp, // Use the stored start timestamp instead of current time
                 duration: parseFloat(finalElapsed),
                 runNumber,
                 crowdLevel,
