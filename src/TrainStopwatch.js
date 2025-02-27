@@ -1,3 +1,7 @@
+// Trevor Williamson
+// 146TW - Station Supervisor
+// Dwell Timer
+
 // TrainStopwatch.js
 import React, { useState, useEffect} from 'react';
 import { saveAs } from 'file-saver';

@@ -1,3 +1,7 @@
+// Trevor Williamson
+// 146TW - Station Supervisor
+// Dwell Timer
+
 // Logs.js
 import { Link } from 'react-router-dom';
 import './Logs.css';

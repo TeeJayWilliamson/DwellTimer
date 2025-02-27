@@ -1,3 +1,7 @@
+// Trevor Williamson
+// 146TW - Station Supervisor
+// Dwell Timer
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
