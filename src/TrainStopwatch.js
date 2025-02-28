@@ -14,11 +14,15 @@ const getTimeSlot = (timeString) => {
     const hours = time.getHours();
     const minutes = time.getMinutes();
     
-    // Adjusted ranges to be inclusive of the upper bound
-    if (minutes >= 0 && minutes <= 15) return `${hours}:00-${hours}:15`;
+    // Handle exact hour case first
+    if (minutes === 0) return `${hours}:00-${hours}:15`;
+    
+    // Other cases
+    if (minutes > 0 && minutes <= 15) return `${hours}:00-${hours}:15`;
     if (minutes > 15 && minutes <= 30) return `${hours}:16-${hours}:30`;
     if (minutes > 30 && minutes <= 45) return `${hours}:31-${hours}:45`;
-    if (minutes > 45 && minutes < 60) return `${hours}:46-${hours + 1}:00`;
+    if (minutes > 45 && minutes < 60) return `${hours}:46-${(hours + 1)}:00`;
+    
     return 'Other';
 };
 
@@ -38,10 +42,14 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
         "Yonge & Bloor SB AM Rush Hour",
         "Union NB AM Rush Hour",
         "St George SB AM Rush Hour",
+        "Eglinton SB AM Rush Hour",
+        "Sheppard SB AM Rush Hour",
         "Yonge & Bloor NB PM Rush Hour",
         "Yonge & Bloor SB PM Rush Hour",
         "Union NB PM Rush Hour",
-        "St George SB PM Rush Hour"
+        "St George SB PM Rush Hour",
+        "Eglinton SB PM Rush Hour",
+        "Sheppard SB PM Rush Hour"
     ];
 
     useEffect(() => {
@@ -133,24 +141,28 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
         if (attemptedStop) setShowValidation(true);
     };
 
-    const getNextTimeSlots = (startTime, count = 5) => {
+    const getNextTimeSlots = (startTime, count = 4) => {
         const slots = [];
+        const uniqueSlots = new Set(); // Use a Set to prevent duplicates
+        
         const time = new Date(startTime);
         const currentSlot = getTimeSlot(time.toLocaleTimeString());
-        slots.push(currentSlot);
-    
+        uniqueSlots.add(currentSlot);
+        
         // Get the start time of the next slot
         const [currentHour, currentMinute] = currentSlot.split('-')[0].split(':').map(Number);
         time.setHours(currentHour);
         time.setMinutes(currentMinute);
-    
-        // Add the next 4 time slots
-        for (let i = 1; i < count; i++) {
+        
+        // Keep adding slots until we have the required count of unique slots
+        while (uniqueSlots.size < count) {
             time.setMinutes(time.getMinutes() + 15);
-            slots.push(getTimeSlot(time.toLocaleTimeString()));
+            const nextSlot = getTimeSlot(time.toLocaleTimeString());
+            uniqueSlots.add(nextSlot);
         }
-    
-        return slots;
+        
+        // Convert Set back to Array
+        return Array.from(uniqueSlots);
     };
     
     const exportLogs = async () => {
@@ -256,45 +268,62 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
                 const rowStart = 4 + logIndex * 3; // Each log entry takes 3 rows
                 const bgColor = rowColors[logIndex % rowColors.length];
     
- // Run number and time
-const runCell = worksheet.getCell(rowStart, colStart + 1); // Changed from colStart to colStart + 1
-const timeCell = worksheet.getCell(rowStart, colStart); // Changed from colStart + 1 to colStart
-
-runCell.value = `Run: ${log.runNumber}`;
-timeCell.value = log.time;
-
-// Find index of current log in sorted logs array for time comparison
-const currentLogIndex = logs.findIndex(l => l.time === log.time && l.runNumber === log.runNumber);
-if (currentLogIndex > 0) {
-    const previousLog = logs[currentLogIndex - 1];
-    const currentTime = new Date(`1970/01/01 ${log.time}`);
-    const prevTime = new Date(`1970/01/01 ${previousLog.time}`);
-    const diffMinutes = (currentTime - prevTime) / (1000 * 60);
-
-    if (diffMinutes > 3) {
-        timeCell.font = { name: "Calibri", size: 12, color: { argb: "C00000" } };
-    }
-}
-
-[runCell, timeCell].forEach(cell => {
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
-    cell.alignment = { horizontal: "left", vertical: "middle" };
-    cell.font = cell.font || { name: "Calibri", size: 12, bold: true };
-    cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-});
-
-timeCell.alignment = { horizontal: "left", vertical: "middle" };
-runCell.alignment = { horizontal: "right", vertical: "middle" };
+                // Run number and time
+                const runCell = worksheet.getCell(rowStart, colStart + 1);
+                const timeCell = worksheet.getCell(rowStart, colStart);
+    
+                runCell.value = log.runNumber;
+                timeCell.value = log.time;
+    
+                // Find index of current log in sorted logs array for time comparison
+                const currentLogIndex = logs.findIndex(l => l.time === log.time && l.runNumber === log.runNumber);
+                if (currentLogIndex > 0) {
+                    const previousLog = logs[currentLogIndex - 1];
+                    const currentTime = new Date(`1970/01/01 ${log.time}`);
+                    const prevTime = new Date(`1970/01/01 ${previousLog.time}`);
+                    const diffMinutes = (currentTime - prevTime) / (1000 * 60);
+    
+                    if (diffMinutes > 3) {
+                        timeCell.font = { name: "Calibri", size: 12, bold: true, color: { argb: "C00000" } };
+                    } else {
+                        timeCell.font = { name: "Calibri", size: 12, bold: true };
+                    }
+                } else {
+                    timeCell.font = { name: "Calibri", size: 12, bold: true };
+                }
+    
+                // Set up borders and formatting, but remove the border between time and run number
+                timeCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
+                timeCell.alignment = { horizontal: "left", vertical: "middle" };
+                timeCell.border = { 
+                    top: { style: "thin" }, 
+                    left: { style: "thin" }, 
+                    bottom: { style: "thin" }
+                    // No right border for timeCell
+                };
+    
+                runCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
+                runCell.alignment = { horizontal: "right", vertical: "middle" };
+                runCell.font = { name: "Calibri", size: 12, bold: true };
+                runCell.border = { 
+                    top: { style: "thin" }, 
+                    // No left border for runCell
+                    bottom: { style: "thin" }, 
+                    right: { style: "thin" } 
+                };
     
                 // Duration (merged)
                 const durationCell = worksheet.getCell(rowStart + 1, colStart);
     
-                durationCell.value = `${log.duration.toFixed(2)} seconds`;
+                durationCell.value = log.duration.toFixed(2);
                 durationCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
                 durationCell.alignment = { horizontal: "center", vertical: "middle" };
+                
+                // Make blue text (duration > 30) bold as well
                 durationCell.font = {
                     name: "Calibri",
                     size: 12,
+                    bold: true, // Always bold
                     color: { argb: log.duration > 30 ? "0070C0" : "000000" }
                 };
                 durationCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
@@ -302,7 +331,7 @@ runCell.alignment = { horizontal: "right", vertical: "middle" };
                 // Crowd level
                 const crowdCell = worksheet.getCell(rowStart + 2, colStart);
     
-                crowdCell.value = `Crowd Levels: ${log.crowdLevel}`;
+                crowdCell.value = log.crowdLevel; 
                 crowdCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
                 crowdCell.alignment = { horizontal: "center", vertical: "middle" };
                 crowdCell.font = { name: "Calibri", size: 12 };
@@ -339,14 +368,16 @@ runCell.alignment = { horizontal: "right", vertical: "middle" };
     
         // Total Dwell row - one per time slot
         currentTotalRow++;
-        timeSlots.forEach((_, slotIndex) => {
+        timeSlots.forEach((timeSlot, slotIndex) => {
             const colStart = slotIndex * 2 + 1;
             worksheet.mergeCells(currentTotalRow, colStart, currentTotalRow, colStart + 1);
             const cell = worksheet.getCell(currentTotalRow, colStart);
-            const totalDwell = logs
-                .filter(log => getTimeSlot(log.time) === timeSlots[slotIndex])
-                .reduce((sum, log) => sum + log.duration, 0);
-            cell.value = `Total Dwell: ${totalDwell.toFixed(2)}`;
+            
+            const slotLogs = logs.filter(log => getTimeSlot(log.time) === timeSlot);
+            const totalDwell = slotLogs.reduce((sum, log) => sum + log.duration, 0);
+            const avgDwell = slotLogs.length > 0 ? (totalDwell / slotLogs.length).toFixed(2) : "0.00";
+            
+            cell.value = `Average Dwell: ${avgDwell}`; // Changed from "Total Dwell" to "Average Dwell"
             cell.font = { name: "Calibri", size: 12, bold: true };
             cell.alignment = { horizontal: "center", vertical: "middle" };
             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "BDD7EE" } };
