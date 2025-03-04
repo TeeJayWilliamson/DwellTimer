@@ -237,6 +237,9 @@ export default function TrainStopwatch({ logs, setLogs }) {
             worksheet.getColumn(i).width = 14;
         }
     
+        // Add an extra column for notes
+        worksheet.getColumn(totalColumns + 1).width = 2;
+    
         // Location Header (Row 1)
         for (let i = 1; i <= totalColumns; i++) {
             const cell = worksheet.getCell(1, i);
@@ -279,6 +282,8 @@ export default function TrainStopwatch({ logs, setLogs }) {
             secondCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
             worksheet.mergeCells(3, colStart, 3, colStart + 1);
         });
+    
+
     
         // Calculate the maximum number of logs in any time slot
         const maxLogs = Math.max(...timeSlots.map(slot => logs.filter(log => getTimeSlot(log.time) === slot).length));
@@ -353,15 +358,15 @@ export default function TrainStopwatch({ logs, setLogs }) {
                     top: { style: "thin" }, 
                     bottom: { style: "thin" }, 
                     right: { style: "thin" }
-};
+                };
     
                 // Duration (merged)
                 const durationCell = worksheet.getCell(rowStart + 1, colStart);
-
+    
                 durationCell.value = log.duration.toFixed(2);
                 durationCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
                 durationCell.alignment = { horizontal: "center", vertical: "middle" };
-
+    
                 // Make blue text (duration > 30) bold as well
                 durationCell.font = {
                     name: "Calibri",
@@ -370,33 +375,33 @@ export default function TrainStopwatch({ logs, setLogs }) {
                     color: { argb: log.duration > 30 ? "0070C0" : "000000" }
                 };
                 durationCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-
+    
                 // Crowd level and Delay Reason
                 const crowdCell = worksheet.getCell(rowStart + 2, colStart);
-
+    
                 crowdCell.value = `${log.crowdLevel} - ${log.delayReason}`; 
                 crowdCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
                 crowdCell.alignment = { horizontal: "center", vertical: "middle" };
                 crowdCell.font = { name: "Calibri", size: 12 };
                 crowdCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
             });
-
+    
             // Add empty rows to match the maximum number of logs (only for run number and time)
             for (let i = slotLogs.length; i < maxLogs; i++) {
                 const rowStart = 4 + i * 3; // Each log entry takes 3 rows
-
+    
                 const runCell = worksheet.getCell(rowStart, colStart);
                 const timeCell = worksheet.getCell(rowStart, colStart + 1);
-
+    
                 [runCell, timeCell].forEach(cell => {
                     cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
                 });
             }
         });
-
+    
         // Start summary section 2 rows below last data
         let currentTotalRow = 4 + maxLogs * 3 + 2;
-
+    
         // Total Trains row - one per time slot
         timeSlots.forEach((_, slotIndex) => {
             const colStart = slotIndex * 2 + 1;
@@ -408,164 +413,214 @@ export default function TrainStopwatch({ logs, setLogs }) {
             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "BDD7EE" } };
             cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
         });
-
+    
         // Total Dwell row - one per time slot
         currentTotalRow++;
         timeSlots.forEach((timeSlot, slotIndex) => {
             const colStart = slotIndex * 2 + 1;
             worksheet.mergeCells(currentTotalRow, colStart, currentTotalRow, colStart + 1);
             const cell = worksheet.getCell(currentTotalRow, colStart);
-
+    
             const slotLogs = logs.filter(log => getTimeSlot(log.time) === timeSlot);
             const totalDwell = slotLogs.reduce((sum, log) => sum + log.duration, 0);
             const avgDwell = slotLogs.length > 0 ? (totalDwell / slotLogs.length).toFixed(2) : "0.00";
-
+    
             cell.value = `Average Dwell: ${avgDwell}`;
             cell.font = { name: "Calibri", size: 12, bold: true };
             cell.alignment = { horizontal: "center", vertical: "middle" };
             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "BDD7EE" } };
             cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
         });
-
-        // Add buffer row for spacing
+    
+        // Add Overall Average Headway row
         currentTotalRow++;
+        const headways = [];
     
-        // Add empty row for spacing
-        currentTotalRow++;
+        // Calculate headways between consecutive trains
+        for (let i = 1; i < logs.length; i++) {
+            const prevTime = new Date(`1970/01/01 ${logs[i-1].time}`);
+            const currentTime = new Date(`1970/01/01 ${logs[i].time}`);
+            const headwayMinutes = (currentTime - prevTime) / (1000 * 60);
+            headways.push(headwayMinutes);
+        }
     
-        // Single Staffing header
-        currentTotalRow++;
-        const staffingCell = worksheet.getCell(currentTotalRow, 1);
-        staffingCell.value = "Staffing:";
-        staffingCell.font = { name: "Calibri", size: 12, bold: true };
-        staffingCell.alignment = { horizontal: "left", vertical: "middle" };
-        staffingCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+        const avgHeadway = headways.length > 0
+            ? (headways.reduce((sum, hw) => sum + hw, 0) / headways.length).toFixed(2)
+            : "N/A";
     
-        // Add staffing categories
-        currentTotalRow++;
-        const staffingStart = currentTotalRow;
-        const staffingCategories = [
-            { label: "GSMs", color: "800080" },
-            { label: "DSMs", color: "800080" },
-            { label: "Supvs", color: "000000" },
-            { label: "TWPs", color: "0070C0" },
-            { label: "CSRs", color: "000000" },
-            { label: "TEOs", color: "800080" },
-            { label: "Other", color: "800080" }
-        ];
+        const headwayCell = worksheet.getCell(currentTotalRow, 1);
+        worksheet.mergeCells(currentTotalRow, 1, currentTotalRow, totalColumns);
+        headwayCell.value = `Overall Average Headway: ${avgHeadway} minutes`;
+        headwayCell.font = { name: "Calibri", size: 12, bold: true };
+        headwayCell.alignment = { horizontal: "center", vertical: "middle" };
+        headwayCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "BDD7EE" } };
+        headwayCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
     
-        // Create staffing header row
-        staffingCategories.forEach((category, index) => {
-            const cell = worksheet.getCell(staffingStart, index + 1);
-            cell.value = category.label;
-            cell.font = { name: "Calibri", size: 12, bold: true, color: { argb: category.color } };
-            cell.alignment = { horizontal: "center", vertical: "middle" };
-            cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-        });
-    
-        // Create staffing value row with data validation
-        const staffingValueRow = staffingStart + 1;
-        staffingCategories.forEach((_, index) => {
-            const cell = worksheet.getCell(staffingValueRow, index + 1);
-            cell.value = 0;
-            cell.font = { name: "Calibri", size: 12 };
-            cell.alignment = { horizontal: "center", vertical: "middle" };
-            cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-    
-            // Add data validation to only allow numbers
-            cell.dataValidation = {
-                type: 'whole',
-                operator: 'greaterThanOrEqual',
-                formula1: 0,
-                allowBlank: false,
-                showErrorMessage: true,
-                errorTitle: 'Invalid Value',
-                error: 'Please enter a number greater than or equal to 0'
-            };
-        });
-    
-        // Add empty row for spacing after staffing
-        currentTotalRow = staffingValueRow + 2;
-    
-        // Summary section with merged cells
-        const summaryLabels = [
-            { topLabel: "Total", bottomLabel: "Staff", color: "800080" },
-            { topLabel: "Empty", bottomLabel: "Trains", color: "000000" },
-            { topLabel: "Total", bottomLabel: "Trains", color: "FF0000" },
-            { topLabel: "Average", bottomLabel: "Dwell", color: "0070C0" }
-        ];
-    
-        // Staffing header row
-        const staffingHeaderRow = currentTotalRow + 1;
-        const labelRow = staffingHeaderRow + 1;
-        const valueRow = labelRow + 1;
-    
-        // Add the labels to the Summary
-        summaryLabels.forEach((item, index) => {
-            const firstColumn = index + 1;
-    
-            const topCell = worksheet.getCell(staffingHeaderRow, firstColumn);
-            topCell.value = item.topLabel;
-            topCell.font = { name: "Calibri", size: 12, bold: true, color: { argb: item.color } };
-            topCell.alignment = { horizontal: "center", vertical: "middle" };
-            topCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-    
-            const bottomCell = worksheet.getCell(labelRow, firstColumn);
-            bottomCell.value = item.bottomLabel;
-            bottomCell.font = { name: "Calibri", size: 12, bold: true, color: { argb: item.color } };
-            bottomCell.alignment = { horizontal: "center", vertical: "middle" };
-            bottomCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-    
-            const valueCell = worksheet.getCell(valueRow, firstColumn);
-            valueCell.font = { name: "Calibri", size: 12 };
-            valueCell.alignment = { horizontal: "center", vertical: "middle" };
-            valueCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-    
-            // Calculate values based on index
-            if (index === 0) {
-                // Total Staff - Set up formula to sum staffing values
-                const firstStaffCell = worksheet.getCell(staffingValueRow, 1)._address;
-                const lastStaffCell = worksheet.getCell(staffingValueRow, staffingCategories.length)._address;
-                valueCell.value = { formula: `SUM(${firstStaffCell}:${lastStaffCell})` };
-            } else if (index === 1) {
-                valueCell.value = 0; // Empty Trains
-            } else if (index === 2) {
-                valueCell.value = logs.length; // Total Trains
-            } else {
-                // Average Dwell
-                const totalDwell = logs.reduce((sum, log) => sum + log.duration, 0);
-                const totalCount = Math.max(1, logs.length);
-                valueCell.value = (totalDwell / totalCount).toFixed(2);
-            }
-        });
+// Predefined delay reasons
+const delayReasons = [
+    "Signal Issue",
+    "Passenger Delay", 
+    "Equipment Problem",
+    "Crowding",
+    "Scheduled Stop",
+    "Other"
+];
 
-        // Notes section 
-        const notesCell = worksheet.getCell(currentTotalRow, 1);
-        notesCell.value = "Notes:";
-        notesCell.font = { name: "Calibri", size: 12, bold: true };
+// Collect only logs with actual, predefined delays
+const delayLogs = logs.filter(log => 
+    log.delayReason && 
+    delayReasons.includes(log.delayReason.trim())
+);
 
-        // Delay Notes section
-        currentTotalRow++;
-        const delayNotesHeaderCell = worksheet.getCell(currentTotalRow, 1);
-        delayNotesHeaderCell.value = "Delay Notes:";
-        delayNotesHeaderCell.font = { name: "Calibri", size: 12, bold: true };
-
-        // Collect delay logs
-        const delayLogs = logs.filter(log => log.delayReason && log.delayReason !== 'None');
-        
-        // Add delay logs to the notes section
-        delayLogs.forEach((log, index) => {
-            currentTotalRow++;
-            const delayLogCell = worksheet.getCell(currentTotalRow, 1);
-            delayLogCell.value = `Run #${log.runNumber}: ${log.delayReason} at ${log.time}`;
-            delayLogCell.font = { name: "Calibri", size: 12 };
-        });
-
-        // Write and save the workbook
-        const buffer = await workbook.xlsx.writeBuffer();
-        saveAs(new Blob([buffer], { type: "application/octet-stream" }), 
-        `${new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })} Dwells.xlsx`);
+// Add Delay Notes to the additional column
+if (delayLogs.length > 0) {
+    const notesHeaderCell = worksheet.getCell(3, totalColumns + 2);
+    notesHeaderCell.value = "Delay Notes";
+    notesHeaderCell.font = { name: "Calibri", size: 12, bold: true };
+    notesHeaderCell.alignment = { horizontal: "center", vertical: "middle" };
+    notesHeaderCell.border = { 
+        top: { style: "thin" }, 
+        left: { style: "thin" }, 
+        bottom: { style: "thin" }, 
+        right: { style: "thin" } 
     };
+
+    // Add an extra column for notes
+    worksheet.getColumn(totalColumns + 2).width = 50;
+
+    // Populate delay notes
+    delayLogs.forEach((log, index) => {
+        const noteCell = worksheet.getCell(4 + index, totalColumns + 2);
+        
+        noteCell.value = `Run #${log.runNumber}: ${log.delayReason} at ${log.time}`;
+        noteCell.font = { name: "Calibri", size: 12 };
+        noteCell.alignment = { horizontal: "left", vertical: "middle" };
+        
+        // Black border around the cell
+        noteCell.border = {
+            top: { style: "thin", color: { argb: "000000" } },
+            left: { style: "thin", color: { argb: "000000" } },
+            bottom: { style: "thin", color: { argb: "000000" } },
+            right: { style: "thin", color: { argb: "000000" } }
+        };
+    });
+}
+    
+    // Staffing section
+    currentTotalRow++;
+    const staffingCell = worksheet.getCell(currentTotalRow, 1);
+    staffingCell.value = "Staffing:";
+    staffingCell.font = { name: "Calibri", size: 12, bold: true };
+    staffingCell.alignment = { horizontal: "left", vertical: "middle" };
+    staffingCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+    
+    // Add staffing categories
+    currentTotalRow++;
+    const staffingStart = currentTotalRow;
+    const staffingCategories = [
+        { label: "GSMs", color: "800080" },
+        { label: "DSMs", color: "800080" },
+        { label: "Supvs", color: "000000" },
+        { label: "TWPs", color: "0070C0" },
+        { label: "CSRs", color: "000000" },
+        { label: "TEOs", color: "800080" },
+        { label: "Other", color: "800080" }
+    ];
+    
+    // Create staffing header row
+    staffingCategories.forEach((category, index) => {
+        const cell = worksheet.getCell(staffingStart, index + 1);
+        cell.value = category.label;
+        cell.font = { name: "Calibri", size: 12, bold: true, color: { argb: category.color } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+    });
+    
+    // Create staffing value row with data validation
+    const staffingValueRow = staffingStart + 1;
+    staffingCategories.forEach((_, index) => {
+        const cell = worksheet.getCell(staffingValueRow, index + 1);
+        cell.value = 0;
+        cell.font = { name: "Calibri", size: 12 };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+    
+        // Add data validation to only allow numbers
+        cell.dataValidation = {
+            type: 'whole',
+            operator: 'greaterThanOrEqual',
+            formula1: 0,
+            allowBlank: false,
+            showErrorMessage: true,
+            errorTitle: 'Invalid Value',
+            error: 'Please enter a number greater than or equal to 0'
+        };
+    });
+    
+    // Summary section
+    currentTotalRow = staffingValueRow + 2;
+    const summaryLabels = [
+        { topLabel: "Total", bottomLabel: "Staff", color: "800080" },
+        { topLabel: "Empty", bottomLabel: "Trains", color: "000000" },
+        { topLabel: "Total", bottomLabel: "Trains", color: "FF0000" },
+        { topLabel: "Average", bottomLabel: "Dwell", color: "0070C0" }
+    ];
+    
+    // Staffing header row
+    const staffingHeaderRow = currentTotalRow;
+    const labelRow = staffingHeaderRow + 1;
+    const valueRow = labelRow + 1;
+    
+    // Add the labels to the Summary
+    summaryLabels.forEach((item, index) => {
+        const firstColumn = index + 1;
+    
+        const topCell = worksheet.getCell(staffingHeaderRow, firstColumn);
+        topCell.value = item.topLabel;
+        topCell.font = { name: "Calibri", size: 12, bold: true, color: { argb: item.color } };
+        topCell.alignment = { horizontal: "center", vertical: "middle" };
+        topCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+    
+        const bottomCell = worksheet.getCell(labelRow, firstColumn);
+        bottomCell.value = item.bottomLabel;
+        bottomCell.font = { name: "Calibri", size: 12, bold: true, color: { argb: item.color } };
+        bottomCell.alignment = { horizontal: "center", vertical: "middle" };
+        bottomCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+    
+        const valueCell = worksheet.getCell(valueRow, firstColumn);
+        valueCell.font = { name: "Calibri", size: 12 };
+        valueCell.alignment = { horizontal: "center", vertical: "middle" };
+        valueCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+    
+        // Calculate values based on index
+        if (index === 0) {
+            // Total Staff - Set up formula to sum staffing values
+            const firstStaffCell = worksheet.getCell(staffingValueRow, 1)._address;
+            const lastStaffCell = worksheet.getCell(staffingValueRow, staffingCategories.length)._address;
+            valueCell.value = { formula: `SUM(${firstStaffCell}:${lastStaffCell})` };
+        } else if (index === 1) {
+            valueCell.value = 0; // Empty Trains
+        } else if (index === 2) {
+            valueCell.value = logs.length; // Total Trains
+        } else {
+            // Average Dwell
+            const totalDwell = logs.reduce((sum, log) => sum + log.duration, 0);
+            const totalCount = Math.max(1, logs.length);
+            valueCell.value = (totalDwell / totalCount).toFixed(2);
+        }
+    });
+    
+    // Write and save the workbook
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer], { type: "application/octet-stream" }), 
+    `${new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })} Dwells.xlsx`);
+    };
+    
+    
+    
+    
+    
+    
 
     return (
         <div className="stopwatch-container">
