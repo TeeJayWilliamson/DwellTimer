@@ -1,9 +1,4 @@
-// Trevor Williamson
-// 146TW - Station Supervisor
-// Dwell Timer
-
-// TrainStopwatch.js
-import React, { useState, useEffect} from 'react';
+import React, { useState, useEffect } from 'react';
 import { saveAs } from 'file-saver';
 import { Link } from 'react-router-dom';
 import './TrainStopwatch.css';
@@ -14,19 +9,16 @@ const getTimeSlot = (timeString) => {
     const hours = time.getHours();
     const minutes = time.getMinutes();
     
-    // Handle exact hour case first
-    if (minutes === 0) return `${hours}:00-${hours}:15`;
-    
-    // Other cases
-    if (minutes > 0 && minutes <= 15) return `${hours}:00-${hours}:15`;
-    if (minutes > 15 && minutes <= 30) return `${hours}:16-${hours}:30`;
-    if (minutes > 30 && minutes <= 45) return `${hours}:31-${hours}:45`;
-    if (minutes > 45 && minutes < 60) return `${hours}:46-${(hours + 1)}:00`;
+    // Adjust logic for time slots to ensure consistent boundaries
+    if (minutes >= 0 && minutes < 15) return `${hours}:00-${hours}:15`;
+    if (minutes >= 15 && minutes < 30) return `${hours}:16-${hours}:30`;
+    if (minutes >= 30 && minutes < 45) return `${hours}:31-${hours}:45`;
+    if (minutes >= 45 && minutes < 60) return `${hours}:46-${hours + 1}:00`;
     
     return 'Other';
 };
 
-export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and setLogs as props
+export default function TrainStopwatch({ logs, setLogs }) {
     const [running, setRunning] = useState(false);
     const [startTime, setStartTime] = useState(null);
     const [elapsedTime, setElapsedTime] = useState(0);
@@ -36,7 +28,11 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
     const [selectedLocation, setSelectedLocation] = useState('');
     const [showValidation, setShowValidation] = useState(false);
     const [attemptedStop, setAttemptedStop] = useState(false);
+    const [delayReason, setDelayReason] = useState('');
+    const [showInstructions, setShowInstructions] = useState(false);
+    const [startTimestamp, setStartTimestamp] = useState('');
 
+    // Updated list of locations
     const locations = [
         "Yonge & Bloor NB AM Rush Hour",
         "Yonge & Bloor SB AM Rush Hour",
@@ -51,6 +47,27 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
         "Eglinton SB PM Rush Hour",
         "Sheppard SB PM Rush Hour"
     ];
+
+    // Predefined delay reasons
+    const delayReasons = [
+        "Signal Issue",
+        "Passenger Delay",
+        "Equipment Problem",
+        "Crowding",
+        "Scheduled Stop",
+        "Other"
+    ];
+
+    // Instruction text
+    const instructionText = `
+    Dwell Timer Usage Instructions:
+    1. Select Location from dropdown
+    2. Enter 3-digit Run Number
+    3. Select Crowd Level
+    4. Click 'Start' when train stops
+    5. Click 'Stop' when train departs
+    6. Select delay reason if applicable
+    `;
 
     useEffect(() => {
         const savedLocation = localStorage.getItem('selectedLocation');
@@ -80,12 +97,10 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
         return runNumber.length === 3 && crowdLevel !== '';
     };
 
-    const [startTimestamp, setStartTimestamp] = useState(''); // Add this to your state variables at the top
-
     const handleStart = () => {
         const now = new Date();
         setStartTime(Date.now() - elapsedTime);
-        setStartTimestamp(now.toLocaleTimeString()); // Store the start time
+        setStartTimestamp(now.toLocaleTimeString());
         setRunning(true);
         setAttemptedStop(false);
         setShowValidation(false);
@@ -94,7 +109,7 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
     const handleLocationChange = (e) => {
         const location = e.target.value;
         setSelectedLocation(location);
-        localStorage.setItem('selectedLocation', location); // Save to localStorage
+        localStorage.setItem('selectedLocation', location);
     };
     
     const handleStop = () => {
@@ -109,14 +124,19 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
             setAttemptedStop(false);
             const finalElapsed = (elapsedTime / 1000).toFixed(2);
             const newLog = {
-                time: startTimestamp, // Use the stored start timestamp instead of current time
+                time: startTimestamp,
                 duration: parseFloat(finalElapsed),
                 runNumber,
                 crowdLevel,
-                date: new Date().toLocaleDateString()
+                date: new Date().toLocaleDateString(),
+                delayReason: delayReason || 'No Delay',
+                location: selectedLocation
             };
-            console.log("New Log Entry:", newLog); // Debugging log
-            setLogs(prevLogs => [...prevLogs, newLog]); // Use the setLogs prop
+            console.log("New Log Entry:", newLog);
+            setLogs(prevLogs => [...prevLogs, newLog]);
+            
+            // Reset specific fields after logging
+            setDelayReason('');
         }
     };
 
@@ -126,6 +146,7 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
         setStartTime(null);
         setRunNumber('');
         setCrowdLevel('');
+        setDelayReason('');
         setShowValidation(false);
         setAttemptedStop(false);
     };
@@ -143,7 +164,7 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
 
     const getNextTimeSlots = (startTime, count = 4) => {
         const slots = [];
-        const uniqueSlots = new Set(); // Use a Set to prevent duplicates
+        const uniqueSlots = new Set();
         
         const time = new Date(startTime);
         const currentSlot = getTimeSlot(time.toLocaleTimeString());
@@ -163,6 +184,32 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
         
         // Convert Set back to Array
         return Array.from(uniqueSlots);
+    };
+
+    const calculateHeadways = (logs) => {
+        // Sort logs by time
+        const sortedLogs = [...logs].sort((a, b) => new Date(`1970/01/01 ${a.time}`) - new Date(`1970/01/01 ${b.time}`));
+        
+        // Calculate time differences between consecutive logs
+        const headways = sortedLogs.slice(1).map((log, index) => {
+            const prevLog = sortedLogs[index];
+            const currentTime = new Date(`1970/01/01 ${log.time}`);
+            const prevTime = new Date(`1970/01/01 ${prevLog.time}`);
+            return (currentTime - prevTime) / (1000 * 60); // Convert to minutes
+        });
+    
+        return {
+            totalAvgHeadway: headways.length > 0 
+                ? (headways.reduce((sum, hw) => sum + hw, 0) / headways.length).toFixed(2) 
+                : "0.00",
+            headwayByTimeSlot: sortedLogs.reduce((acc, log) => {
+                const timeSlot = getTimeSlot(log.time);
+                if (!acc[timeSlot]) {
+                    acc[timeSlot] = [];
+                }
+                return acc;
+            }, {})
+        };
     };
     
     const exportLogs = async () => {
@@ -187,7 +234,7 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
     
         // Set column widths to 90 pixels (approximately 72 points)
         for (let i = 1; i <= totalColumns; i++) {
-            worksheet.getColumn(i).width = 14; // 72 points is roughly 90 pixels
+            worksheet.getColumn(i).width = 14;
         }
     
         // Location Header (Row 1)
@@ -246,15 +293,13 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
     
                 // Merge the cells for Duration and apply border
                 worksheet.mergeCells(rowStart + 1, colStart, rowStart + 1, colStart + 1);
-                const durationCell = worksheet.getCell(rowStart + 1, colStart); //Get reference to merged cell
+                const durationCell = worksheet.getCell(rowStart + 1, colStart);
                 durationCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-    
     
                 // Merge the cells for Crowd Level and apply border
                 worksheet.mergeCells(rowStart + 2, colStart, rowStart + 2, colStart + 1);
-                const crowdCell = worksheet.getCell(rowStart + 2, colStart); //Get reference to merged cell
+                const crowdCell = worksheet.getCell(rowStart + 2, colStart);
                 crowdCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-    
             }
         });
     
@@ -275,7 +320,7 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
                 runCell.value = log.runNumber;
                 timeCell.value = log.time;
     
-                // Find index of current log in sorted logs array for time comparison
+                // Time cell highlighting logic
                 const currentLogIndex = logs.findIndex(l => l.time === log.time && l.runNumber === log.runNumber);
                 if (currentLogIndex > 0) {
                     const previousLog = logs[currentLogIndex - 1];
@@ -292,14 +337,13 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
                     timeCell.font = { name: "Calibri", size: 12, bold: true };
                 }
     
-                // Set up borders and formatting, but remove the border between time and run number
+                // Set up borders and formatting, without the right border for time cell
                 timeCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
                 timeCell.alignment = { horizontal: "left", vertical: "middle" };
                 timeCell.border = { 
                     top: { style: "thin" }, 
                     left: { style: "thin" }, 
                     bottom: { style: "thin" }
-                    // No right border for timeCell
                 };
     
                 runCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
@@ -307,18 +351,17 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
                 runCell.font = { name: "Calibri", size: 12, bold: true };
                 runCell.border = { 
                     top: { style: "thin" }, 
-                    // No left border for runCell
                     bottom: { style: "thin" }, 
-                    right: { style: "thin" } 
-                };
+                    right: { style: "thin" }
+};
     
                 // Duration (merged)
                 const durationCell = worksheet.getCell(rowStart + 1, colStart);
-    
+
                 durationCell.value = log.duration.toFixed(2);
                 durationCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
                 durationCell.alignment = { horizontal: "center", vertical: "middle" };
-                
+
                 // Make blue text (duration > 30) bold as well
                 durationCell.font = {
                     name: "Calibri",
@@ -327,33 +370,33 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
                     color: { argb: log.duration > 30 ? "0070C0" : "000000" }
                 };
                 durationCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-    
-                // Crowd level
+
+                // Crowd level and Delay Reason
                 const crowdCell = worksheet.getCell(rowStart + 2, colStart);
-    
-                crowdCell.value = log.crowdLevel; 
+
+                crowdCell.value = `${log.crowdLevel} - ${log.delayReason}`; 
                 crowdCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
                 crowdCell.alignment = { horizontal: "center", vertical: "middle" };
                 crowdCell.font = { name: "Calibri", size: 12 };
                 crowdCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
             });
-    
+
             // Add empty rows to match the maximum number of logs (only for run number and time)
             for (let i = slotLogs.length; i < maxLogs; i++) {
                 const rowStart = 4 + i * 3; // Each log entry takes 3 rows
-    
+
                 const runCell = worksheet.getCell(rowStart, colStart);
                 const timeCell = worksheet.getCell(rowStart, colStart + 1);
-    
+
                 [runCell, timeCell].forEach(cell => {
                     cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
                 });
             }
         });
-    
+
         // Start summary section 2 rows below last data
         let currentTotalRow = 4 + maxLogs * 3 + 2;
-    
+
         // Total Trains row - one per time slot
         timeSlots.forEach((_, slotIndex) => {
             const colStart = slotIndex * 2 + 1;
@@ -365,24 +408,27 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "BDD7EE" } };
             cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
         });
-    
+
         // Total Dwell row - one per time slot
         currentTotalRow++;
         timeSlots.forEach((timeSlot, slotIndex) => {
             const colStart = slotIndex * 2 + 1;
             worksheet.mergeCells(currentTotalRow, colStart, currentTotalRow, colStart + 1);
             const cell = worksheet.getCell(currentTotalRow, colStart);
-            
+
             const slotLogs = logs.filter(log => getTimeSlot(log.time) === timeSlot);
             const totalDwell = slotLogs.reduce((sum, log) => sum + log.duration, 0);
             const avgDwell = slotLogs.length > 0 ? (totalDwell / slotLogs.length).toFixed(2) : "0.00";
-            
-            cell.value = `Average Dwell: ${avgDwell}`; // Changed from "Total Dwell" to "Average Dwell"
+
+            cell.value = `Average Dwell: ${avgDwell}`;
             cell.font = { name: "Calibri", size: 12, bold: true };
             cell.alignment = { horizontal: "center", vertical: "middle" };
             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "BDD7EE" } };
             cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
         });
+
+        // Add buffer row for spacing
+        currentTotalRow++;
     
         // Add empty row for spacing
         currentTotalRow++;
@@ -492,17 +538,34 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
                 valueCell.value = (totalDwell / totalCount).toFixed(2);
             }
         });
-    
-        // Add Notes label
-        const notesCell = worksheet.getCell(staffingHeaderRow, 9);
+
+        // Notes section 
+        const notesCell = worksheet.getCell(currentTotalRow, 1);
         notesCell.value = "Notes:";
         notesCell.font = { name: "Calibri", size: 12, bold: true };
-    
+
+        // Delay Notes section
+        currentTotalRow++;
+        const delayNotesHeaderCell = worksheet.getCell(currentTotalRow, 1);
+        delayNotesHeaderCell.value = "Delay Notes:";
+        delayNotesHeaderCell.font = { name: "Calibri", size: 12, bold: true };
+
+        // Collect delay logs
+        const delayLogs = logs.filter(log => log.delayReason && log.delayReason !== 'None');
+        
+        // Add delay logs to the notes section
+        delayLogs.forEach((log, index) => {
+            currentTotalRow++;
+            const delayLogCell = worksheet.getCell(currentTotalRow, 1);
+            delayLogCell.value = `Run #${log.runNumber}: ${log.delayReason} at ${log.time}`;
+            delayLogCell.font = { name: "Calibri", size: 12 };
+        });
+
+        // Write and save the workbook
         const buffer = await workbook.xlsx.writeBuffer();
-        saveAs(new Blob([buffer], { type: "application/octet-stream" }), `${new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })} Dwells.xlsx`);
+        saveAs(new Blob([buffer], { type: "application/octet-stream" }), 
+        `${new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })} Dwells.xlsx`);
     };
-    
-    
 
     return (
         <div className="stopwatch-container">
@@ -510,6 +573,24 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
                 <img src="/TTC.png" alt="TTC Logo" className="ttc-logo" />
                 <h1 className="stopwatch-title">Dwell Timer</h1>
             </div>
+
+            {/* Instructions Toggle */}
+            <div className="instructions-toggle">
+                <button 
+                    onClick={() => setShowInstructions(!showInstructions)}
+                    className="info-button"
+                >
+                    {showInstructions ? 'Hide Instructions' : 'Show Instructions'}
+                </button>
+            </div>
+
+            {/* Instructions Section */}
+            {showInstructions && (
+                <div className="instructions-section">
+                    <pre className="instructions-text">{instructionText}</pre>
+                </div>
+            )}
+
             <div className="location-selector">
                 <select
                     value={selectedLocation}
@@ -556,7 +637,22 @@ export default function TrainStopwatch({ logs, setLogs }) { // Receive logs and 
                         <span className="error-message">Select a crowd level</span>
                     )}
                 </div>
+
+                <div className="input-group">
+                    <label htmlFor="delayReason">Delay Reason (Optional):</label>
+                    <select
+                        id="delayReason"
+                        value={delayReason}
+                        onChange={(e) => setDelayReason(e.target.value)}
+                    >
+                        <option value="">Select Delay Reason</option>
+                        {delayReasons.map((reason, index) => (
+                            <option key={index} value={reason}>{reason}</option>
+                        ))}
+                    </select>
+                </div>
             </div>
+
 
             {running && !validateInputs() && (
                 <div className="warning-message">
