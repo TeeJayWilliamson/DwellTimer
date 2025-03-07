@@ -18,7 +18,7 @@ const getTimeSlot = (timeString) => {
     return 'Other';
 };
 
-export default function TrainStopwatch() {
+export default function TrainStopwatch({ logs, setLogs }) {
     const [running, setRunning] = useState(false);
     const [startTime, setStartTime] = useState(null);
     const [elapsedTime, setElapsedTime] = useState(0);
@@ -31,7 +31,6 @@ export default function TrainStopwatch() {
     const [delayReason, setDelayReason] = useState('');
     const [showInstructions, setShowInstructions] = useState(false);
     const [startTimestamp, setStartTimestamp] = useState('');
-    const [logs, setLogs] = useState({});
 
     // Updated list of locations
     const locations = [
@@ -63,12 +62,15 @@ export default function TrainStopwatch() {
     // Instruction text
     const instructionText = `
     Dwell Timer Usage Instructions:
-    1. Select Location from dropdown
-    2. Enter 3-digit Run Number
-    3. Select Crowd Level
-    4. Click 'Start' when train stops
-    5. Click 'Stop' when train departs
-    6. Select delay reason if applicable
+    1. Select your location from the dropdown
+    2. Click 'Start' when train opens it doors.
+    3. Enter 3-digit Run Number
+    4. Select Crowd Level
+    5. Select delay reason if applicable
+    6. Click 'Stop' when train doors fully close.
+    7. If the train reopens it's doors, press start again until fully closed.
+    8. Select 'Next Train' when the train moves off and you're ready to record the next.
+    9. At the end of checking Dwells, use "Export Logs" to download the completed Spreadsheet.
     `;
 
     useEffect(() => {
@@ -95,42 +97,6 @@ export default function TrainStopwatch() {
         return () => clearInterval(stopwatchInterval);
     }, [running, elapsedTime, startTime]);
 
-    useEffect(() => {
-        const savedLogs = localStorage.getItem('trainLogs');
-        if (savedLogs) {
-            try {
-                const parsedLogs = JSON.parse(savedLogs);
-                setLogs(parsedLogs);
-                
-                // Auto-cleanup logs older than 7 days
-                const updatedLogs = { ...parsedLogs };
-                let hasRemovedLogs = false;
-                
-                Object.keys(updatedLogs).forEach(date => {
-                    const parts = date.split('/');
-                    if (parts.length === 3) {
-                        const logDate = new Date(parseInt(parts[2]), parseInt(parts[0])-1, parseInt(parts[1]));
-                        const weekAgo = new Date();
-                        weekAgo.setDate(weekAgo.getDate() - 7);
-                        
-                        if (logDate < weekAgo) {
-                            delete updatedLogs[date];
-                            hasRemovedLogs = true;
-                        }
-                    }
-                });
-                
-                if (hasRemovedLogs) {
-                    localStorage.setItem('trainLogs', JSON.stringify(updatedLogs));
-                    setLogs(updatedLogs);
-                }
-            } catch (e) {
-                console.error("Error loading logs:", e);
-                setLogs({});
-            }
-        }
-    }, []);
-
     const validateInputs = () => {
         return runNumber.length === 3 && crowdLevel !== '';
     };
@@ -156,34 +122,22 @@ export default function TrainStopwatch() {
             setAttemptedStop(true);
             return;
         }
-
+    
         if (running) {
             setRunning(false);
             setAttemptedStop(false);
             const finalElapsed = (elapsedTime / 1000).toFixed(2);
-            const today = new Date().toLocaleDateString();
-            
             const newLog = {
                 time: startTimestamp,
                 duration: parseFloat(finalElapsed),
                 runNumber,
                 crowdLevel,
-                date: today,
+                date: new Date().toLocaleDateString(),
                 delayReason: delayReason || 'No Delay',
                 location: selectedLocation
             };
-            
-            setLogs(prevLogs => {
-                const updatedLogs = { ...prevLogs };
-                if (!updatedLogs[today]) {
-                    updatedLogs[today] = [];
-                }
-                updatedLogs[today].push(newLog);
-                
-                // Save to localStorage
-                localStorage.setItem('trainLogs', JSON.stringify(updatedLogs));
-                return updatedLogs;
-            });
+            console.log("New Log Entry:", newLog);
+            setLogs(prevLogs => [...prevLogs, newLog]);
             
             // Reset specific fields after logging
             setDelayReason('');
@@ -262,16 +216,16 @@ export default function TrainStopwatch() {
         };
     };
     
-    const exportLogs = async (logsToExport, dateLabel) => {
+    const exportLogs = async () => {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet("Train Logs");
     
         // Find the earliest log time
-        const earliestLog = logsToExport.reduce((earliest, log) => {
+        const earliestLog = logs.reduce((earliest, log) => {
             const logTime = new Date(`1970/01/01 ${log.time}`);
             const earliestTime = new Date(`1970/01/01 ${earliest.time}`);
             return logTime < earliestTime ? log : earliest;
-        }, logsToExport[0]);
+        }, logs[0]);
     
         // If no logs exist, use current time
         const startTime = earliestLog
@@ -308,7 +262,7 @@ export default function TrainStopwatch() {
         for (let i = 1; i <= totalColumns; i++) {
             const cell = worksheet.getCell(2, i);
             if (i === 1) {
-                cell.value = dateLabel;
+                cell.value = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
             }
             cell.font = { name: "Calibri", size: 12, bold: true };
             cell.alignment = { horizontal: "left", vertical: "middle" };
@@ -333,8 +287,10 @@ export default function TrainStopwatch() {
             worksheet.mergeCells(3, colStart, 3, colStart + 1);
         });
     
+
+    
         // Calculate the maximum number of logs in any time slot
-        const maxLogs = Math.max(...timeSlots.map(slot => logsToExport.filter(log => getTimeSlot(log.time) === slot).length));
+        const maxLogs = Math.max(...timeSlots.map(slot => logs.filter(log => getTimeSlot(log.time) === slot).length));
     
         //  *** PREEMPTIVELY MERGE CELLS and ADD BORDERS ***
         timeSlots.forEach((timeSlot, slotIndex) => {
@@ -358,7 +314,7 @@ export default function TrainStopwatch() {
     
         // Log Data and track counts
         timeSlots.forEach((timeSlot, slotIndex) => {
-            const slotLogs = logsToExport.filter((log) => getTimeSlot(log.time) === timeSlot);
+            const slotLogs = logs.filter((log) => getTimeSlot(log.time) === timeSlot);
             const colStart = slotIndex * 2 + 1;
     
             // Add logs for this time slot
@@ -374,9 +330,9 @@ export default function TrainStopwatch() {
                 timeCell.value = log.time;
     
                 // Time cell highlighting logic
-                const currentLogIndex = logsToExport.findIndex(l => l.time === log.time && l.runNumber === log.runNumber);
+                const currentLogIndex = logs.findIndex(l => l.time === log.time && l.runNumber === log.runNumber);
                 if (currentLogIndex > 0) {
-                    const previousLog = logsToExport[currentLogIndex - 1];
+                    const previousLog = logs[currentLogIndex - 1];
                     const currentTime = new Date(`1970/01/01 ${log.time}`);
                     const prevTime = new Date(`1970/01/01 ${previousLog.time}`);
                     const diffMinutes = (currentTime - prevTime) / (1000 * 60);
@@ -451,11 +407,11 @@ export default function TrainStopwatch() {
         let currentTotalRow = 4 + maxLogs * 3 + 2;
     
         // Total Trains row - one per time slot
-        timeSlots.forEach((timeSlot, slotIndex) => {
+        timeSlots.forEach((_, slotIndex) => {
             const colStart = slotIndex * 2 + 1;
             worksheet.mergeCells(currentTotalRow, colStart, currentTotalRow, colStart + 1);
             const cell = worksheet.getCell(currentTotalRow, colStart);
-            cell.value = `Total Trains: ${logsToExport.filter(log => getTimeSlot(log.time) === timeSlot).length}`;
+            cell.value = `Total Trains: ${logs.filter(log => getTimeSlot(log.time) === timeSlots[slotIndex]).length}`;
             cell.font = { name: "Calibri", size: 12, bold: true };
             cell.alignment = { horizontal: "center", vertical: "middle" };
             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "BDD7EE" } };
@@ -469,7 +425,7 @@ export default function TrainStopwatch() {
             worksheet.mergeCells(currentTotalRow, colStart, currentTotalRow, colStart + 1);
             const cell = worksheet.getCell(currentTotalRow, colStart);
     
-            const slotLogs = logsToExport.filter(log => getTimeSlot(log.time) === timeSlot);
+            const slotLogs = logs.filter(log => getTimeSlot(log.time) === timeSlot);
             const totalDwell = slotLogs.reduce((sum, log) => sum + log.duration, 0);
             const avgDwell = slotLogs.length > 0 ? (totalDwell / slotLogs.length).toFixed(2) : "0.00";
     
@@ -485,9 +441,9 @@ export default function TrainStopwatch() {
         const headways = [];
     
         // Calculate headways between consecutive trains
-        for (let i = 1; i < logsToExport.length; i++) {
-            const prevTime = new Date(`1970/01/01 ${logsToExport[i-1].time}`);
-            const currentTime = new Date(`1970/01/01 ${logsToExport[i].time}`);
+        for (let i = 1; i < logs.length; i++) {
+            const prevTime = new Date(`1970/01/01 ${logs[i-1].time}`);
+            const currentTime = new Date(`1970/01/01 ${logs[i].time}`);
             const headwayMinutes = (currentTime - prevTime) / (1000 * 60);
             headways.push(headwayMinutes);
         }
@@ -504,111 +460,155 @@ export default function TrainStopwatch() {
         headwayCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "BDD7EE" } };
         headwayCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
     
-        // Collect only logs with actual, predefined delays
-        const delayLogs = logsToExport.filter(log => 
-            log.delayReason && 
-            delayReasons.includes(log.delayReason.trim())
-        );
+// Predefined delay reasons
+const delayReasons = [
+    "Signal Issue",
+    "Investigation",
+    "Passenger Delay",
+    "Mechanical",
+    "Crowding",
+    "Turnbacks",
+    "Other"
+];
 
-        // Add Delay Notes to the additional column
-        if (delayLogs.length > 0) {
-            const notesHeaderCell = worksheet.getCell(3, totalColumns + 2);
-            notesHeaderCell.value = "Delay Notes";
-            notesHeaderCell.font = { name: "Calibri", size: 12, bold: true };
-            notesHeaderCell.alignment = { horizontal: "center", vertical: "middle" };
-            notesHeaderCell.border = { 
-                top: { style: "thin" }, 
-                left: { style: "thin" }, 
-                bottom: { style: "thin" }, 
-                right: { style: "thin" } 
-            };
+// Collect only logs with actual, predefined delays
+const delayLogs = logs.filter(log => 
+    log.delayReason && 
+    delayReasons.includes(log.delayReason.trim())
+);
 
-            // Add an extra column for notes
-            worksheet.getColumn(totalColumns + 2).width = 50;
+// Add Delay Notes to the additional column
+if (delayLogs.length > 0) {
+    const notesHeaderCell = worksheet.getCell(3, totalColumns + 2);
+    notesHeaderCell.value = "Delay Notes";
+    notesHeaderCell.font = { name: "Calibri", size: 12, bold: true };
+    notesHeaderCell.alignment = { horizontal: "center", vertical: "middle" };
+    notesHeaderCell.border = { 
+        top: { style: "thin" }, 
+        left: { style: "thin" }, 
+        bottom: { style: "thin" }, 
+        right: { style: "thin" } 
+    };
 
-            // Populate delay notes
-            delayLogs.forEach((log, index) => {
-                const noteCell = worksheet.getCell(4 + index, totalColumns + 2);
-                
-                noteCell.value = `Run #${log.runNumber}: ${log.delayReason} at ${log.time}`;
-                noteCell.font = { name: "Calibri", size: 12 };
-                noteCell.alignment = { horizontal: "left", vertical: "middle" };
-                
-                // Black border around the cell
-                noteCell.border = {
-                    top: { style: "thin", color: { argb: "000000" } },
-                    left: { style: "thin", color: { argb: "000000" } },
-                    bottom: { style: "thin", color: { argb: "000000" } },
-                    right: { style: "thin", color: { argb: "000000" } }
-                };
-            });
-        }
-    
-        // Staffing section
-        currentTotalRow++;
-        const staffingCell = worksheet.getCell(currentTotalRow, 1);
-        staffingCell.value = "Staffing:";
-        staffingCell.font = { name: "Calibri", size: 12, bold: true };
-        staffingCell.alignment = { horizontal: "left", vertical: "middle" };
-        staffingCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-    
-        // Add staffing categories
-        currentTotalRow++;
-        const staffingStart = currentTotalRow;
-        const staffingCategories = [
-            { label: "GSMs", color: "800080" },
-            { label: "DSMs", color: "800080" },
-            { label: "Supvs", color: "000000" },
-            { label: "TWPs", color: "0070C0" },
-            { label: "CSRs", color: "000000" },
-            { label: "TEOs", color: "800080" },
-            { label: "Other", color: "800080" }
-        ];
-    
-        // Create staffing header row
-        staffingCategories.forEach((category, index) => {
-            const cell = worksheet.getCell(staffingStart, index + 1);
-            cell.value = category.label;
-            cell.font = { name: "Calibri", size: 12, bold: true, color: { argb: category.color } };
-            cell.alignment = { horizontal: "center", vertical: "middle" };
-            cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-        });
-    
-        // Create staffing value row with data validation
-        const staffingValueRow = staffingStart + 1;
-        staffingCategories.forEach((_, index) => {
-            const cell = worksheet.getCell(staffingValueRow, index + 1);
-            cell.value = 0;
-            cell.font = { name: "Calibri", size: 12 };
-            cell.alignment = { horizontal: "center", vertical: "middle" };
-            cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
-    
-            // Add data validation to only allow numbers
-            cell.dataValidation = {
-                type: 'whole',
-                operator: 'greaterThanOrEqual',
-                formula1: 0,
-                allowBlank: false,
-                showErrorMessage: true,
-                errorTitle: 'Invalid Value',
-                error: 'Please enter a number greater than or equal to 0'
-            };
-        });
-    
-        // Summary section
-        currentTotalRow = staffingValueRow + 2;
-        const summaryLabels = [
-            { topLabel: "Total", bottomLabel: "Staff", color: "800080" },
-            { topLabel: "Empty", bottomLabel: "Trains", color: "000000" },
-            { topLabel: "Total", bottomLabel: "Trains", color: "FF0000" },
-            { topLabel: "Average", bottomLabel: "Dwell", color: "0070C0" }
-        ];
-    
-        // Staffing header row
-        const staffingHeaderRow = currentTotalRow;
-        const labelRow = staffingHeaderRow + 1;
-        const valueRow = labelRow + 1;
+    // Add an extra column for notes
+    worksheet.getColumn(totalColumns + 2).width = 50;
 
+    // Populate delay notes
+    delayLogs.forEach((log, index) => {
+        const noteCell = worksheet.getCell(4 + index, totalColumns + 2);
+        
+        noteCell.value = `Run #${log.runNumber}: ${log.delayReason} at ${log.time}`;
+        noteCell.font = { name: "Calibri", size: 12 };
+        noteCell.alignment = { horizontal: "left", vertical: "middle" };
+        
+        // Black border around the cell
+        noteCell.border = {
+            top: { style: "thin", color: { argb: "000000" } },
+            left: { style: "thin", color: { argb: "000000" } },
+            bottom: { style: "thin", color: { argb: "000000" } },
+            right: { style: "thin", color: { argb: "000000" } }
+        };
+    });
+}
+
+// Add Delay Notes to the additional column
+if (delayLogs.length > 0) {
+    const notesHeaderCell = worksheet.getCell(3, totalColumns + 2);
+    notesHeaderCell.value = "Delay Notes";
+    notesHeaderCell.font = { name: "Calibri", size: 12, bold: true };
+    notesHeaderCell.alignment = { horizontal: "center", vertical: "middle" };
+    notesHeaderCell.border = { 
+        top: { style: "thin" }, 
+        left: { style: "thin" }, 
+        bottom: { style: "thin" }, 
+        right: { style: "thin" } 
+    };
+
+    // Add an extra column for notes
+    worksheet.getColumn(totalColumns + 2).width = 50;
+
+    // Populate delay notes
+    delayLogs.forEach((log, index) => {
+        const noteCell = worksheet.getCell(4 + index, totalColumns + 2);
+        
+        noteCell.value = `Run #${log.runNumber}: ${log.delayReason} at ${log.time}`;
+        noteCell.font = { name: "Calibri", size: 12 };
+        noteCell.alignment = { horizontal: "left", vertical: "middle" };
+        
+        // Black border around the cell
+        noteCell.border = {
+            top: { style: "thin", color: { argb: "000000" } },
+            left: { style: "thin", color: { argb: "000000" } },
+            bottom: { style: "thin", color: { argb: "000000" } },
+            right: { style: "thin", color: { argb: "000000" } }
+        };
+    });
+}
+    
+    // Staffing section
+    currentTotalRow++;
+    const staffingCell = worksheet.getCell(currentTotalRow, 1);
+    staffingCell.value = "Staffing:";
+    staffingCell.font = { name: "Calibri", size: 12, bold: true };
+    staffingCell.alignment = { horizontal: "left", vertical: "middle" };
+    staffingCell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+    
+    // Add staffing categories
+    currentTotalRow++;
+    const staffingStart = currentTotalRow;
+    const staffingCategories = [
+        { label: "GSMs", color: "800080" },
+        { label: "DSMs", color: "800080" },
+        { label: "Supvs", color: "000000" },
+        { label: "TWPs", color: "0070C0" },
+        { label: "CSRs", color: "000000" },
+        { label: "TEOs", color: "800080" },
+        { label: "Other", color: "800080" }
+    ];
+    
+    // Create staffing header row
+    staffingCategories.forEach((category, index) => {
+        const cell = worksheet.getCell(staffingStart, index + 1);
+        cell.value = category.label;
+        cell.font = { name: "Calibri", size: 12, bold: true, color: { argb: category.color } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+    });
+    
+    // Create staffing value row with data validation
+    const staffingValueRow = staffingStart + 1;
+    staffingCategories.forEach((_, index) => {
+        const cell = worksheet.getCell(staffingValueRow, index + 1);
+        cell.value = 0;
+        cell.font = { name: "Calibri", size: 12 };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+    
+        // Add data validation to only allow numbers
+        cell.dataValidation = {
+            type: 'whole',
+            operator: 'greaterThanOrEqual',
+            formula1: 0,
+            allowBlank: false,
+            showErrorMessage: true,
+            errorTitle: 'Invalid Value',
+            error: 'Please enter a number greater than or equal to 0'
+        };
+    });
+    
+    // Summary section
+    currentTotalRow = staffingValueRow + 2;
+    const summaryLabels = [
+        { topLabel: "Total", bottomLabel: "Staff", color: "800080" },
+        { topLabel: "Empty", bottomLabel: "Trains", color: "000000" },
+        { topLabel: "Total", bottomLabel: "Trains", color: "FF0000" },
+        { topLabel: "Average", bottomLabel: "Dwell", color: "0070C0" }
+    ];
+    
+    // Staffing header row
+    const staffingHeaderRow = currentTotalRow;
+    const labelRow = staffingHeaderRow + 1;
+    const valueRow = labelRow + 1;
     
     // Add the labels to the Summary
     summaryLabels.forEach((item, index) => {
