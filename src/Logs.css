@@ -123,3 +123,82 @@
       font-size: 0.9rem;
     }
   }
+  
+  /* Add these styles to Logs.css */
+
+.date-section {
+  margin-bottom: 2rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.date-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f5f5f5;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #ddd;
+}
+
+.date-title {
+  margin: 0;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+}
+
+.date-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.export-button, .clear-date-button {
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  border: none;
+}
+
+.export-button {
+  background-color: #007bff;
+  color: white;
+}
+
+.clear-date-button {
+  background-color: #dc3545;
+  color: white;
+}
+
+.expiring {
+  border-color: #ffc107;
+}
+
+.expiring .date-header {
+  background-color: #fff3cd;
+}
+
+.expiring-tag {
+  font-size: 0.8rem;
+  background-color: #ffc107;
+  color: #000;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 10px;
+}
+
+/* Responsive design for mobile */
+@media (max-width: 768px) {
+  .date-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+  }
+  
+  .date-actions {
+      width: 100%;
+      justify-content: space-between;
+  }
+}
